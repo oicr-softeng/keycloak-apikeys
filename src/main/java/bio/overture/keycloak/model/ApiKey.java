@@ -1,29 +1,29 @@
 package bio.overture.keycloak.model;
 
-import lombok.Builder;
-import lombok.Data;
-import lombok.NonNull;
+import bio.overture.keycloak.params.ScopeName;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import lombok.*;
 
 import java.util.Date;
 import java.util.Set;
 
-@Data
+@Getter
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class ApiKey {
-  @NonNull
   private String name;
-
-  @NonNull
-  private Set<String> scope;
-
-  @NonNull
+  private Set<ScopeName> scope;
   private Date expiryDate;
-
-  @NonNull
   private Date issueDate;
-
-  @NonNull
   private Boolean isRevoked;
-
   private String description;
+
+  @SneakyThrows
+  @Override
+  public String toString(){
+    ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+    return ow.writeValueAsString(this);
+  }
 }
