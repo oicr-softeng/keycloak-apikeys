@@ -79,4 +79,19 @@ public class ApiKeyResource {
         .build();
   }
 
+  @DELETE
+  @Path("api_key")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response revokeApiKey(@QueryParam(value="apiKey") String apiKey){
+    logger.info("DELETE /api_key  apiKey:" + apiKey);
+
+    UserModel user = userService.checkAuth().getUser();
+
+    ApiKey revokedApiKey = userService.revokeApiKey(user, apiKey);
+
+    return Response
+        .ok(revokedApiKey)
+        .build();
+  }
+
 }

@@ -88,7 +88,44 @@ public class UserService {
     return apiKey;
   }
 
+  public ApiKey revokeApiKey(@NonNull UserModel user, String apiKey){
+
+    validateApiKey(apiKey);
+
+    Optional<ApiKey> foundApiKey = user
+        .getAttributeStream("api-keys")
+        .map(key -> jsonStringToClass(key, ApiKey.class))
+        .filter(k -> k.getName().equals(apiKey))
+        .findFirst();
+
+    if(foundApiKey.isPresent()){
+      ApiKey editingApiKey = foundApiKey.get();
+      removeApiKey(user, editingApiKey);
+      editingApiKey.setIsRevoked(true);
+      setApiKey(user, editingApiKey);
+      return editingApiKey;
+    }
+
+    throw new BadRequestException("No ApiKey found");
+  }
+
   private void setApiKey(UserModel user, ApiKey apiKey){
     user.getAttributes().get("api-keys").add(apiKey.toString());
+  }
+
+  private void removeApiKey(UserModel user, ApiKey apiKey){
+    user.getAttributes().get("api-keys").remove(apiKey);
+  }
+
+  private void validateApiKey(String apiKey){
+
+    if (apiKey == null || apiKey.isEmpty()) {
+      throw new BadRequestException("ApiKey cannot be empty.");
+    }
+
+    if (apiKey.length() > 2048) {
+      throw new BadRequestException(
+          "Invalid apiKey, the maximum length for an apiKey is 2048.");
+    }
   }
 }
