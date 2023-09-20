@@ -18,6 +18,7 @@ import org.keycloak.services.managers.AuthenticationManager;
 import java.util.*;
 
 import static bio.overture.keycloak.utils.Converters.jsonStringToClass;
+import static bio.overture.keycloak.utils.Dates.isExpired;
 import static bio.overture.keycloak.utils.Dates.keyExpirationDate;
 import static java.util.stream.Collectors.toSet;
 
@@ -92,11 +93,7 @@ public class UserService {
 
     validateApiKey(apiKey);
 
-    Optional<ApiKey> foundApiKey = user
-        .getAttributeStream("api-keys")
-        .map(key -> jsonStringToClass(key, ApiKey.class))
-        .filter(k -> k.getName().equals(apiKey))
-        .findFirst();
+    Optional<ApiKey> foundApiKey = findApiKey(user, apiKey);
 
     if(foundApiKey.isPresent()){
       ApiKey editingApiKey = foundApiKey.get();
@@ -107,6 +104,13 @@ public class UserService {
     }
 
     throw new BadRequestException("No ApiKey found");
+  }
+  public Optional<ApiKey> findApiKey(UserModel user, String apiKey){
+    return user
+        .getAttributeStream("api-keys")
+        .map(key -> jsonStringToClass(key, ApiKey.class))
+        .filter(k -> k.getName().equals(apiKey))
+        .findFirst();
   }
 
   private void setApiKey(UserModel user, ApiKey apiKey){
@@ -126,6 +130,16 @@ public class UserService {
     if (apiKey.length() > 2048) {
       throw new BadRequestException(
           "Invalid apiKey, the maximum length for an apiKey is 2048.");
+    }
+  }
+
+  public void isApiKeyValid(Optional<ApiKey> apiKey){
+    if(apiKey.isEmpty()) {
+      throw new BadRequestException("ApiKey not found");
+    } else if(isExpired(apiKey.get().getExpiryDate())){
+      throw new BadRequestException("ApiKey is already expired");
+    } else if(apiKey.get().getIsRevoked() == true){
+      throw new BadRequestException("ApiKey is not valid");
     }
   }
 }

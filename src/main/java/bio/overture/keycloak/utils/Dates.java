@@ -17,4 +17,8 @@ public class Dates {
     LocalDateTime localDate = LocalDateTime.now().plusDays(durationDays);
     return Date.from(localDate.atZone(ZoneId.systemDefault()).toInstant());
   }
+
+  public static boolean isExpired(Date expirationDate){
+    return expirationDate.before(new Date());
+  }
 }

@@ -2,6 +2,7 @@ package bio.overture.keycloak.resource;
 
 import bio.overture.keycloak.model.ApiKey;
 import bio.overture.keycloak.model.dto.ApiKeyResponse;
+import bio.overture.keycloak.model.dto.CheckApiKeyResponse;
 import bio.overture.keycloak.services.UserService;
 import bio.overture.keycloak.params.ScopeName;
 import jakarta.ws.rs.*;
@@ -12,9 +13,7 @@ import org.jboss.logging.Logger;
 import org.keycloak.models.*;
 import org.keycloak.services.managers.AuthenticationManager;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static bio.overture.keycloak.utils.CollectionUtils.mapToList;
 
@@ -41,6 +40,9 @@ public class ApiKeyResource {
       @QueryParam("sortOrder") String sortOrder
   ){
     logger.info("GET /api_key  user_id:" + userId + ", query:" + query);
+
+    AuthenticationManager.AuthResult auth = userService.checkAuth();
+
     UserModel user = userService.getUserById(userId);
     Set<ApiKey> keys = userService.getApiKeys(user);
 
@@ -91,6 +93,30 @@ public class ApiKeyResource {
 
     return Response
         .ok(revokedApiKey)
+        .build();
+  }
+
+  @POST
+  @Path("check_api_key")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response checkApiKey(
+      @QueryParam(value="apiKey") String apiKey
+  ){
+    logger.info("POST /check_api_key  apiKey:" + apiKey);
+
+    UserModel user = userService.checkAuth().getUser();
+
+    Optional<ApiKey> foundApiKey = userService.findApiKey(user, apiKey);
+
+    userService.isApiKeyValid(foundApiKey);
+
+    return Response
+        .ok(CheckApiKeyResponse
+            .builder()
+            .user_id(user.getId())
+            .exp(foundApiKey.get().getExpiryDate().getTime())
+            .scope(foundApiKey.get().getScope())
+            .build())
         .build();
   }
 
