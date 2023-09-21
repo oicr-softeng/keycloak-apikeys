@@ -3,12 +3,12 @@ package bio.overture.keycloak.resource;
 import bio.overture.keycloak.model.ApiKey;
 import bio.overture.keycloak.model.dto.ApiKeyResponse;
 import bio.overture.keycloak.model.dto.CheckApiKeyResponse;
+import bio.overture.keycloak.services.ApiKeyService;
 import bio.overture.keycloak.services.UserService;
 import bio.overture.keycloak.params.ScopeName;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import lombok.NonNull;
 import org.jboss.logging.Logger;
 import org.keycloak.models.*;
 import org.keycloak.services.managers.AuthenticationManager;
@@ -16,15 +16,18 @@ import org.keycloak.services.managers.AuthenticationManager;
 import java.util.*;
 
 import static bio.overture.keycloak.utils.CollectionUtils.mapToList;
+import static bio.overture.keycloak.utils.Dates.isExpired;
 
 public class ApiKeyResource {
 
   private final KeycloakSession session;
   private final UserService userService;
+  private final ApiKeyService apiKeyService;
 
   public ApiKeyResource(KeycloakSession session){
     this.session = session;
     this.userService = new UserService(session);
+    this.apiKeyService = new ApiKeyService();
   }
   private static final Logger logger = Logger.getLogger(ApiKeyResource.class);
 
@@ -32,7 +35,7 @@ public class ApiKeyResource {
   @Path("api_key")
   @Produces(MediaType.APPLICATION_JSON)
   public Response listApiKeys(
-      @NonNull @QueryParam("user_id") String userId,
+      @QueryParam("user_id") String userId,
       @QueryParam("query") String query,
       @DefaultValue("20") @QueryParam("limit") int limit,
       @DefaultValue("0") @QueryParam("offset") int offset,
@@ -44,7 +47,10 @@ public class ApiKeyResource {
     AuthenticationManager.AuthResult auth = userService.checkAuth();
 
     UserModel user = userService.getUserById(userId);
-    Set<ApiKey> keys = userService.getApiKeys(user);
+
+    userService.validateIsSameUser(auth, user);
+
+    Set<ApiKey> keys = apiKeyService.getApiKeys(user);
 
     return Response
         .ok(ApiKeyResponse
@@ -70,11 +76,13 @@ public class ApiKeyResource {
 
     AuthenticationManager.AuthResult auth = userService.checkAuth();
 
-    List<ScopeName> scopeNames = mapToList(scopes, ScopeName::new);
-
     UserModel user = userService.getUserById(userId);
 
-    ApiKey apiKey = userService.issueApiKey(user, scopeNames, description);
+    userService.validateIsSameUserOrAdmin(auth, user);
+
+    List<ScopeName> scopeNames = mapToList(scopes, ScopeName::new);
+
+    ApiKey apiKey = apiKeyService.issueApiKey(user, scopeNames, description);
 
     return Response
         .ok(apiKey)
@@ -87,9 +95,13 @@ public class ApiKeyResource {
   public Response revokeApiKey(@QueryParam(value="apiKey") String apiKey){
     logger.info("DELETE /api_key  apiKey:" + apiKey);
 
-    UserModel user = userService.checkAuth().getUser();
+    AuthenticationManager.AuthResult auth = userService.checkAuth();
 
-    ApiKey revokedApiKey = userService.revokeApiKey(user, apiKey);
+    UserModel user = auth.getUser();
+
+    userService.validateIsSameUserOrAdmin(auth, user);
+
+    ApiKey revokedApiKey = apiKeyService.revokeApiKey(user, apiKey);
 
     return Response
         .ok(revokedApiKey)
@@ -104,17 +116,25 @@ public class ApiKeyResource {
   ){
     logger.info("POST /check_api_key  apiKey:" + apiKey);
 
-    UserModel user = userService.checkAuth().getUser();
+    AuthenticationManager.AuthResult auth = userService.checkAuth();
 
-    Optional<ApiKey> foundApiKey = userService.findApiKey(user, apiKey);
+    UserModel user = auth.getUser();
 
-    userService.isApiKeyValid(foundApiKey);
+    userService.validateIsSameUser(auth, user);
+
+    Optional<ApiKey> foundApiKey = apiKeyService.findApiKey(user, apiKey);
+
+    if(foundApiKey.isEmpty()){
+      throw new BadRequestException("ApiKey not found");
+    }
 
     return Response
         .ok(CheckApiKeyResponse
             .builder()
             .user_id(user.getId())
             .exp(foundApiKey.get().getExpiryDate().getTime())
+            .isValid(!isExpired(foundApiKey.get().getExpiryDate()) || !foundApiKey.get().getIsRevoked())
+            .isRevoked(foundApiKey.get().getIsRevoked())
             .scope(foundApiKey.get().getScope())
             .build())
         .build();

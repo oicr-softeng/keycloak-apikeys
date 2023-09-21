@@ -1,26 +1,15 @@
 package bio.overture.keycloak.services;
 
-import bio.overture.keycloak.model.ApiKey;
-import bio.overture.keycloak.params.ScopeName;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotAuthorizedException;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.jboss.logging.Logger;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.UserProvider;
+import org.keycloak.models.*;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
 
-import java.util.*;
-
-import static bio.overture.keycloak.utils.Converters.jsonStringToClass;
-import static bio.overture.keycloak.utils.Dates.isExpired;
-import static bio.overture.keycloak.utils.Dates.keyExpirationDate;
-import static java.util.stream.Collectors.toSet;
+import java.util.Optional;
 
 @RequiredArgsConstructor
 public class UserService {
@@ -29,29 +18,15 @@ public class UserService {
 
   private static final Logger logger = Logger.getLogger(UserService.class);
 
-  public UserModel getUserById(@NonNull String user_id){
+  public UserModel getUserById(String user_id){
     RealmModel realm = this.session.getContext().getRealm();
 
-    UserProvider users = this.session.users();
-    UserModel user = users.getUserById(realm, user_id);
+    UserModel user = this.session.users().getUserById(realm, user_id);
 
     if(user == null) {
       throw new BadRequestException("User not valid");
     }
     return user;
-  }
-
-  public Set<ApiKey> getApiKeys(@NonNull UserModel user){
-
-      if(user.getAttributes() == null
-          || user.getAttributes().get("api-keys") == null) {
-        return Collections.emptySet();
-      }
-
-      return user
-          .getAttributeStream("api-keys")
-          .map(key -> jsonStringToClass(key, ApiKey.class))
-          .collect(toSet());
   }
 
   public AuthenticationManager.AuthResult checkAuth() {
@@ -60,7 +35,7 @@ public class UserService {
         .authenticate();
 
     if (auth == null) {
-      throw new NotAuthorizedException("Bearer");
+      throw new NotAuthorizedException("Bearer is not valid");
     } else if (auth.getToken().getIssuedFor() == null
         || !auth.getToken().isActive()
         || auth.getToken().isExpired()) {
@@ -69,77 +44,22 @@ public class UserService {
     return auth;
   }
 
-  public ApiKey issueApiKey(@NonNull UserModel user ,
-                               @NonNull List<ScopeName> scopes,
-                               String description){
-
-    ApiKey apiKey = ApiKey
-        .builder()
-        .name(UUID.randomUUID().toString())
-        .scope(new HashSet<>(scopes))
-        .description(description)
-        .issueDate(new Date())
-        .expiryDate(keyExpirationDate())
-        .isRevoked(false)
-        .build();
-
-    setApiKey(user, apiKey);
-
-
-    return apiKey;
-  }
-
-  public ApiKey revokeApiKey(@NonNull UserModel user, String apiKey){
-
-    validateApiKey(apiKey);
-
-    Optional<ApiKey> foundApiKey = findApiKey(user, apiKey);
-
-    if(foundApiKey.isPresent()){
-      ApiKey editingApiKey = foundApiKey.get();
-      removeApiKey(user, editingApiKey);
-      editingApiKey.setIsRevoked(true);
-      setApiKey(user, editingApiKey);
-      return editingApiKey;
+  public void validateIsSameUser(AuthenticationManager.AuthResult auth, UserModel userModel){
+    if(auth.getUser() != userModel){
+      throw new ForbiddenException("apiKeys are only visible for it's owner");
     }
-
-    throw new BadRequestException("No ApiKey found");
   }
-  public Optional<ApiKey> findApiKey(UserModel user, String apiKey){
-    return user
-        .getAttributeStream("api-keys")
-        .map(key -> jsonStringToClass(key, ApiKey.class))
-        .filter(k -> k.getName().equals(apiKey))
+
+  public void validateIsSameUserOrAdmin(AuthenticationManager.AuthResult auth, UserModel userModel){
+    validateIsSameUser(auth, userModel);
+
+    Optional<RoleModel> isAdmin = userModel
+        .getRoleMappingsStream()
+        .filter(roleModel -> roleModel.getName().equals("ADMIN"))
         .findFirst();
-  }
 
-  private void setApiKey(UserModel user, ApiKey apiKey){
-    user.getAttributes().get("api-keys").add(apiKey.toString());
-  }
-
-  private void removeApiKey(UserModel user, ApiKey apiKey){
-    user.getAttributes().get("api-keys").remove(apiKey);
-  }
-
-  private void validateApiKey(String apiKey){
-
-    if (apiKey == null || apiKey.isEmpty()) {
-      throw new BadRequestException("ApiKey cannot be empty.");
-    }
-
-    if (apiKey.length() > 2048) {
-      throw new BadRequestException(
-          "Invalid apiKey, the maximum length for an apiKey is 2048.");
-    }
-  }
-
-  public void isApiKeyValid(Optional<ApiKey> apiKey){
-    if(apiKey.isEmpty()) {
-      throw new BadRequestException("ApiKey not found");
-    } else if(isExpired(apiKey.get().getExpiryDate())){
-      throw new BadRequestException("ApiKey is already expired");
-    } else if(apiKey.get().getIsRevoked() == true){
-      throw new BadRequestException("ApiKey is not valid");
+    if(isAdmin.isEmpty()){
+      throw new ForbiddenException("apiKeys are only visible for it's owner or an Admin");
     }
   }
 }
