@@ -1,32 +1,39 @@
 package bio.overture.keycloak.services;
 
+import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotAuthorizedException;
-import lombok.RequiredArgsConstructor;
 import org.jboss.logging.Logger;
+import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.models.*;
+import org.keycloak.models.jpa.entities.UserEntity;
+import org.keycloak.models.utils.RoleUtils;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
 
-import java.util.Optional;
+import java.util.Set;
 
-@RequiredArgsConstructor
 public class UserService {
 
   private final KeycloakSession session;
+  private EntityManager entityManager;
 
   private static final Logger logger = Logger.getLogger(UserService.class);
 
-  public UserModel getUserById(String user_id){
-    RealmModel realm = this.session.getContext().getRealm();
+  public UserService(KeycloakSession session) {
+    this.session = session;
+    this.entityManager = session.getProvider(JpaConnectionProvider.class).getEntityManager();
+  }
 
-    UserModel user = this.session.users().getUserById(realm, user_id);
+  public UserEntity getUserById(String user_id){
 
-    if(user == null) {
+    UserEntity userEntity = entityManager.find(UserEntity.class, user_id);
+
+    if(userEntity == null) {
       throw new BadRequestException("User not valid");
     }
-    return user;
+    return userEntity;
   }
 
   public AuthenticationManager.AuthResult checkAuth() {
@@ -44,21 +51,20 @@ public class UserService {
     return auth;
   }
 
-  public void validateIsSameUser(AuthenticationManager.AuthResult auth, UserModel userModel){
-    if(auth.getUser() != userModel){
+  public void validateIsSameUser(AuthenticationManager.AuthResult auth, UserEntity user){
+    if(!auth.getUser().getId().equals(user.getId())){
       throw new ForbiddenException("apiKeys are only visible for it's owner");
     }
   }
 
-  public void validateIsSameUserOrAdmin(AuthenticationManager.AuthResult auth, UserModel userModel){
-    validateIsSameUser(auth, userModel);
+  public void validateIsSameUserOrAdmin(AuthenticationManager.AuthResult auth, UserEntity user){
+    Set<RoleModel> roles = RoleUtils.getDeepUserRoleMappings(auth.getUser());
 
-    Optional<RoleModel> isAdmin = userModel
-        .getRoleMappingsStream()
-        .filter(roleModel -> roleModel.getName().equals("ADMIN"))
-        .findFirst();
+    if(roles.stream().noneMatch(roleModel -> roleModel.getName().equals("ADMIN"))){
+      // Authentication is not an Admin,
+      // check if it is the same user making the request
+      validateIsSameUser(auth, user);
 
-    if(isAdmin.isEmpty()){
       throw new ForbiddenException("apiKeys are only visible for it's owner or an Admin");
     }
   }

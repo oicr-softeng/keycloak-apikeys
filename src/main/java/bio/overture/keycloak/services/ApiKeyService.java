@@ -2,37 +2,57 @@ package bio.overture.keycloak.services;
 
 import bio.overture.keycloak.model.ApiKey;
 import bio.overture.keycloak.params.ScopeName;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import jakarta.ws.rs.BadRequestException;
 import lombok.NonNull;
 import org.jboss.logging.Logger;
-import org.keycloak.models.UserModel;
+import org.keycloak.connections.jpa.JpaConnectionProvider;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.jpa.entities.UserAttributeEntity;
+import org.keycloak.models.jpa.entities.UserEntity;
 
 import java.util.*;
 
 import static bio.overture.keycloak.utils.Converters.jsonStringToClass;
+import static bio.overture.keycloak.utils.Dates.isExpired;
 import static bio.overture.keycloak.utils.Dates.keyExpirationDate;
 import static java.util.stream.Collectors.toSet;
 
 public class ApiKeyService {
 
+  private KeycloakSession session;
+  private EntityManager entityManager;
+
   private static final Logger logger = Logger.getLogger(ApiKeyService.class);
 
   private static final String API_KEYS_ATTRIBUTE = "api-keys";
 
-  public Set<ApiKey> getApiKeys(@NonNull UserModel user){
+  public ApiKeyService(KeycloakSession session) {
+    this.session = session;
+    this.entityManager = session.getProvider(JpaConnectionProvider.class).getEntityManager();
+  }
+
+  public Set<ApiKey> getApiKeys(@NonNull UserEntity user){
 
     if(user.getAttributes() == null
-        || user.getAttributes().get(API_KEYS_ATTRIBUTE) == null) {
+        || user.getAttributes().stream().noneMatch(attribute -> attribute.getName().equals(API_KEYS_ATTRIBUTE))) {
       return Collections.emptySet();
     }
 
     return user
-        .getAttributeStream(API_KEYS_ATTRIBUTE)
-        .map(key -> jsonStringToClass(key, ApiKey.class))
+        .getAttributes()
+        .stream()
+        .filter(attribute -> attribute.getName().equals(API_KEYS_ATTRIBUTE))
+        .map(attributeEntity -> parseApiKey(attributeEntity))
         .collect(toSet());
   }
 
-  public ApiKey issueApiKey(@NonNull UserModel user ,
+  public ApiKey issueApiKey(@NonNull String userId ,
                             @NonNull List<ScopeName> scopes,
                             String description){
 
@@ -46,50 +66,93 @@ public class ApiKeyService {
         .isRevoked(false)
         .build();
 
-    setApiKey(user, apiKey);
-
+    setApiKey(userId, apiKey);
 
     return apiKey;
   }
 
-  public ApiKey revokeApiKey(@NonNull UserModel user, String apiKeyName){
+  public ApiKey revokeApiKey(@NonNull UserEntity user, String apiKeyName){
 
-    validateApiKey(apiKeyName);
+    validFormatApiKey(apiKeyName);
 
-    Optional<String> foundApiKey = user
-        .getAttributeStream(API_KEYS_ATTRIBUTE)
-        .filter(keyValueString -> jsonStringToClass(keyValueString, ApiKey.class).getName().equals(apiKeyName))
+    Optional<UserAttributeEntity> foundAttribute = entityManager
+        .find(UserEntity.class, user.getId())
+        .getAttributes()
+        .stream()
+        .filter(attribute -> parseApiKey(attribute).getName().equals(apiKeyName))
         .findFirst();
 
-    if(foundApiKey.isEmpty()){
+    if(foundAttribute.isEmpty()){
       throw new BadRequestException("No ApiKey found");
     }
 
-    ApiKey parsedApiKey = jsonStringToClass(foundApiKey.get(), ApiKey.class);
-
-    parsedApiKey.setIsRevoked(true);
-    removeApiKey(user, foundApiKey.get());
-    setApiKey(user, parsedApiKey);
-
-    return parsedApiKey;
+    return revokeApiKeyAttribute(foundAttribute.get());
   }
-  public Optional<ApiKey> findApiKey(UserModel user, String apiKey){
-    return user
-        .getAttributeStream(API_KEYS_ATTRIBUTE)
-        .map(key -> jsonStringToClass(key, ApiKey.class))
-        .filter(k -> k.getName().equals(apiKey))
+
+  public Optional<UserAttributeEntity> findByApiKeyAttribute(String apiKeyName){
+    CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+    CriteriaQuery<UserAttributeEntity> cq = cb.createQuery(UserAttributeEntity.class);
+    Root<UserAttributeEntity> root = cq.from(UserAttributeEntity.class);
+
+    Predicate searchName = cb.equal(root.get("name"), API_KEYS_ATTRIBUTE);
+
+    cq.where(cb.and(searchName));
+
+    TypedQuery<UserAttributeEntity> query = entityManager.createQuery(cq);
+
+    return query
+        .getResultList()
+        .stream()
+        .filter(attribute -> parseApiKey(attribute).getName().equals(apiKeyName))
         .findFirst();
+
   }
 
-  private void setApiKey(UserModel user, ApiKey apiKey){
-    user.getAttributes().get(API_KEYS_ATTRIBUTE).add(apiKey.toString());
+  public ApiKey parseApiKey(UserAttributeEntity attributeApiKey){
+    return jsonStringToClass(attributeApiKey.getValue(), ApiKey.class);
   }
 
-  private void removeApiKey(UserModel user, String apiKeyString){
-    user.getAttributes().get(API_KEYS_ATTRIBUTE).remove(apiKeyString);
+  public String checkApiResponseMessage(ApiKey apiKey){
+    String message = null;
+
+    if(isExpired(apiKey.getExpiryDate())){
+      message = "ApiKey is expired";
+    } else if (apiKey.getIsRevoked()) {
+      message = "ApiKey is revoked";
+    }
+    return message;
   }
 
-  private void validateApiKey(String apiKey){
+  public boolean isValidApiKey(ApiKey apiKey){
+    return !isExpired(apiKey.getExpiryDate()) && !apiKey.getIsRevoked();
+  }
+
+  private ApiKey setApiKey(String userId, ApiKey apiKey){
+
+    UserEntity userEntity = entityManager.find(UserEntity.class, userId);
+    UserAttributeEntity attributeEntity = new UserAttributeEntity();
+    attributeEntity.setName(API_KEYS_ATTRIBUTE);
+    attributeEntity.setValue(apiKey.toString());
+    attributeEntity.setUser(userEntity);
+    attributeEntity.setId(UUID.randomUUID().toString());
+    entityManager.persist(attributeEntity);
+
+    return apiKey;
+  }
+
+  private ApiKey revokeApiKeyAttribute(UserAttributeEntity attribute){
+
+    ApiKey editApiKey = parseApiKey(attribute);
+    editApiKey.setIsRevoked(true);
+
+    attribute.setValue(editApiKey.toString());
+
+    entityManager.persist(attribute);
+
+    return editApiKey;
+  }
+
+  private void validFormatApiKey(String apiKey){
 
     if (apiKey == null || apiKey.isEmpty()) {
       throw new BadRequestException("ApiKey cannot be empty.");

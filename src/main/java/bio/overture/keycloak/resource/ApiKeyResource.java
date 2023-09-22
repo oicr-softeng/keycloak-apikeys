@@ -11,12 +11,13 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
 import org.keycloak.models.*;
+import org.keycloak.models.jpa.entities.UserAttributeEntity;
+import org.keycloak.models.jpa.entities.UserEntity;
 import org.keycloak.services.managers.AuthenticationManager;
 
 import java.util.*;
 
 import static bio.overture.keycloak.utils.CollectionUtils.mapToList;
-import static bio.overture.keycloak.utils.Dates.isExpired;
 
 public class ApiKeyResource {
 
@@ -27,7 +28,7 @@ public class ApiKeyResource {
   public ApiKeyResource(KeycloakSession session){
     this.session = session;
     this.userService = new UserService(session);
-    this.apiKeyService = new ApiKeyService();
+    this.apiKeyService = new ApiKeyService(session);
   }
   private static final Logger logger = Logger.getLogger(ApiKeyResource.class);
 
@@ -46,7 +47,7 @@ public class ApiKeyResource {
 
     AuthenticationManager.AuthResult auth = userService.checkAuth();
 
-    UserModel user = userService.getUserById(userId);
+    UserEntity user = userService.getUserById(userId);
 
     userService.validateIsSameUser(auth, user);
 
@@ -76,13 +77,13 @@ public class ApiKeyResource {
 
     AuthenticationManager.AuthResult auth = userService.checkAuth();
 
-    UserModel user = userService.getUserById(userId);
+    UserEntity user = userService.getUserById(userId);
 
     userService.validateIsSameUserOrAdmin(auth, user);
 
     List<ScopeName> scopeNames = mapToList(scopes, ScopeName::new);
 
-    ApiKey apiKey = apiKeyService.issueApiKey(user, scopeNames, description);
+    ApiKey apiKey = apiKeyService.issueApiKey(userId, scopeNames, description);
 
     return Response
         .ok(apiKey)
@@ -97,11 +98,17 @@ public class ApiKeyResource {
 
     AuthenticationManager.AuthResult auth = userService.checkAuth();
 
-    UserModel user = auth.getUser();
+    Optional<UserAttributeEntity> foundApiKey = apiKeyService.findByApiKeyAttribute(apiKey);
 
-    userService.validateIsSameUserOrAdmin(auth, user);
+    if(foundApiKey.isEmpty()){
+      throw new BadRequestException("ApiKey not found");
+    }
 
-    ApiKey revokedApiKey = apiKeyService.revokeApiKey(user, apiKey);
+    UserEntity ownerApiKey = foundApiKey.get().getUser();
+
+    userService.validateIsSameUserOrAdmin(auth, ownerApiKey);
+
+    ApiKey revokedApiKey = apiKeyService.revokeApiKey(ownerApiKey, apiKey);
 
     return Response
         .ok(revokedApiKey)
@@ -118,24 +125,27 @@ public class ApiKeyResource {
 
     AuthenticationManager.AuthResult auth = userService.checkAuth();
 
-    UserModel user = auth.getUser();
-
-    userService.validateIsSameUser(auth, user);
-
-    Optional<ApiKey> foundApiKey = apiKeyService.findApiKey(user, apiKey);
+    Optional<UserAttributeEntity> foundApiKey = apiKeyService.findByApiKeyAttribute(apiKey);
 
     if(foundApiKey.isEmpty()){
       throw new BadRequestException("ApiKey not found");
     }
 
+    UserEntity ownerApiKey = foundApiKey.get().getUser();
+
+    userService.validateIsSameUser(auth, ownerApiKey);
+
+    ApiKey parsedApiKey = apiKeyService.parseApiKey(foundApiKey.get());
+
     return Response
         .ok(CheckApiKeyResponse
             .builder()
-            .user_id(user.getId())
-            .exp(foundApiKey.get().getExpiryDate().getTime())
-            .isValid(!isExpired(foundApiKey.get().getExpiryDate()) || !foundApiKey.get().getIsRevoked())
-            .isRevoked(foundApiKey.get().getIsRevoked())
-            .scope(foundApiKey.get().getScope())
+            .user_id(ownerApiKey.getId())
+            .exp(parsedApiKey.getExpiryDate().getTime())
+            .isValid(apiKeyService.isValidApiKey(parsedApiKey))
+            .message(apiKeyService.checkApiResponseMessage(parsedApiKey))
+            .isRevoked(parsedApiKey.getIsRevoked())
+            .scope(apiKeyService.isValidApiKey(parsedApiKey) ? parsedApiKey.getScope() : null)
             .build())
         .build();
   }
