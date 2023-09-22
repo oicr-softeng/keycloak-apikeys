@@ -37,11 +37,11 @@ public class ApiKeyResource {
   @Produces(MediaType.APPLICATION_JSON)
   public Response listApiKeys(
       @QueryParam("user_id") String userId,
-      @QueryParam("query") String query,
+      @DefaultValue("") @QueryParam("query") String query,
       @DefaultValue("20") @QueryParam("limit") int limit,
       @DefaultValue("0") @QueryParam("offset") int offset,
-      @QueryParam("sort") String sort,
-      @QueryParam("sortOrder") String sortOrder
+      @DefaultValue("name") @QueryParam("sort") String sort,
+      @DefaultValue("ASC") @QueryParam("sortOrder") String sortOrder
   ){
     logger.info("GET /api_key  user_id:" + userId + ", query:" + query);
 
@@ -51,7 +51,7 @@ public class ApiKeyResource {
 
     userService.validateIsSameUser(auth, user);
 
-    Set<ApiKey> keys = apiKeyService.getApiKeys(user);
+    List<ApiKey> keys = apiKeyService.getApiKeys(user, query, limit, offset, sort, sortOrder);
 
     return Response
         .ok(ApiKeyResponse

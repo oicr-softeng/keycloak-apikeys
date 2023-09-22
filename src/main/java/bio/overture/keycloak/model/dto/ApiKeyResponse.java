@@ -3,7 +3,7 @@ package bio.overture.keycloak.model.dto;
 import bio.overture.keycloak.model.ApiKey;
 import lombok.*;
 
-import java.util.Set;
+import java.util.List;
 
 @Data
 @Builder
@@ -15,5 +15,5 @@ public class ApiKeyResponse {
 
     private int count;
 
-    private Set<ApiKey> resultSet;
+    private List<ApiKey> resultSet;
 }

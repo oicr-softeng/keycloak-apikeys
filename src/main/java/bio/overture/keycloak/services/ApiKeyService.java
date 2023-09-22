@@ -18,10 +18,11 @@ import org.keycloak.models.jpa.entities.UserEntity;
 
 import java.util.*;
 
+import static bio.overture.keycloak.utils.Constants.SORT_ORDER_ASC;
 import static bio.overture.keycloak.utils.Converters.jsonStringToClass;
 import static bio.overture.keycloak.utils.Dates.isExpired;
 import static bio.overture.keycloak.utils.Dates.keyExpirationDate;
-import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Collectors.toList;
 
 public class ApiKeyService {
 
@@ -37,19 +38,45 @@ public class ApiKeyService {
     this.entityManager = session.getProvider(JpaConnectionProvider.class).getEntityManager();
   }
 
-  public Set<ApiKey> getApiKeys(@NonNull UserEntity user){
+  public List<ApiKey> getApiKeys(@NonNull UserEntity user, String query, int limit, int offset, String sort, String sortOrder){
 
     if(user.getAttributes() == null
         || user.getAttributes().stream().noneMatch(attribute -> attribute.getName().equals(API_KEYS_ATTRIBUTE))) {
-      return Collections.emptySet();
+      return Collections.emptyList();
     }
 
     return user
         .getAttributes()
         .stream()
         .filter(attribute -> attribute.getName().equals(API_KEYS_ATTRIBUTE))
-        .map(attributeEntity -> parseApiKey(attributeEntity))
-        .collect(toSet());
+        .map(this::parseApiKey)
+        .filter(value -> !query.isEmpty() ? value.getName().equals(query) : true)
+        .sorted(findComparator(sort, sortOrder))
+        .skip(offset)
+        .limit(limit)
+        .collect(toList());
+  }
+
+  public Comparator<ApiKey> findComparator(String sort, String sortOrder){
+    Comparator<ApiKey> comparator;
+    switch (sort.toUpperCase()) {
+      case  "EXPIRYDATE":
+        comparator = sortOrder.equalsIgnoreCase(SORT_ORDER_ASC) ? ApiKey.byExpiryDate : ApiKey.byExpiryDate.reversed();
+        break;
+      case  "ISSUEDATE":
+        comparator = sortOrder.equalsIgnoreCase(SORT_ORDER_ASC) ? ApiKey.byIssueDate : ApiKey.byIssueDate.reversed();
+        break;
+      case  "ISREVOKED":
+        comparator = sortOrder.equalsIgnoreCase(SORT_ORDER_ASC) ? ApiKey.byRevoked : ApiKey.byRevoked.reversed();
+        break;
+      case  "DESCRIPTION":
+        comparator = sortOrder.equalsIgnoreCase(SORT_ORDER_ASC) ? ApiKey.byDescription : ApiKey.byDescription.reversed();
+        break;
+      default:
+        comparator = sortOrder.equalsIgnoreCase(SORT_ORDER_ASC) ? ApiKey.byName : ApiKey.byName.reversed();
+        break;
+    }
+    return comparator;
   }
 
   public ApiKey issueApiKey(@NonNull String userId ,
