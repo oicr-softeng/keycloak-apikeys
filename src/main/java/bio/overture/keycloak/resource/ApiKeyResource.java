@@ -4,6 +4,7 @@ import bio.overture.keycloak.model.ApiKey;
 import bio.overture.keycloak.model.dto.ApiKeyResponse;
 import bio.overture.keycloak.model.dto.CheckApiKeyResponse;
 import bio.overture.keycloak.services.ApiKeyService;
+import bio.overture.keycloak.services.AuthService;
 import bio.overture.keycloak.services.UserService;
 import bio.overture.keycloak.params.ScopeName;
 import jakarta.ws.rs.*;
@@ -24,11 +25,13 @@ public class ApiKeyResource {
   private final KeycloakSession session;
   private final UserService userService;
   private final ApiKeyService apiKeyService;
+  private final AuthService authService;
 
   public ApiKeyResource(KeycloakSession session){
     this.session = session;
     this.userService = new UserService(session);
     this.apiKeyService = new ApiKeyService(session);
+    this.authService = new AuthService(session);
   }
   private static final Logger logger = Logger.getLogger(ApiKeyResource.class);
 
@@ -45,11 +48,11 @@ public class ApiKeyResource {
   ){
     logger.info("GET /api_key  user_id:" + userId + ", query:" + query);
 
-    AuthenticationManager.AuthResult auth = userService.checkAuth();
+    AuthenticationManager.AuthResult auth = authService.checkBearerAuth();
 
     UserEntity user = userService.getUserById(userId);
 
-    userService.validateIsSameUser(auth, user);
+    authService.validateIsSameUser(auth, user);
 
     List<ApiKey> keys = apiKeyService.getApiKeys(user, query, limit, offset, sort, sortOrder);
 
@@ -75,11 +78,11 @@ public class ApiKeyResource {
   ){
     logger.info("POST /api_key  user_id:" + userId + ", scopes:" + scopes);
 
-    AuthenticationManager.AuthResult auth = userService.checkAuth();
+    AuthenticationManager.AuthResult auth = authService.checkBearerAuth();
 
     UserEntity user = userService.getUserById(userId);
 
-    userService.validateIsSameUserOrAdmin(auth, user);
+    authService.validateIsSameUserOrAdmin(auth, user);
 
     List<ScopeName> scopeNames = mapToList(scopes, ScopeName::new);
 
@@ -96,7 +99,7 @@ public class ApiKeyResource {
   public Response revokeApiKey(@QueryParam(value="apiKey") String apiKey){
     logger.info("DELETE /api_key  apiKey:" + apiKey);
 
-    AuthenticationManager.AuthResult auth = userService.checkAuth();
+    AuthenticationManager.AuthResult auth = authService.checkBearerAuth();
 
     Optional<UserAttributeEntity> foundApiKey = apiKeyService.findByApiKeyAttribute(apiKey);
 
@@ -106,7 +109,7 @@ public class ApiKeyResource {
 
     UserEntity ownerApiKey = foundApiKey.get().getUser();
 
-    userService.validateIsSameUserOrAdmin(auth, ownerApiKey);
+    authService.validateIsSameUserOrAdmin(auth, ownerApiKey);
 
     ApiKey revokedApiKey = apiKeyService.revokeApiKey(ownerApiKey, apiKey);
 
@@ -123,17 +126,21 @@ public class ApiKeyResource {
   ){
     logger.info("POST /check_api_key  apiKey:" + apiKey);
 
-    AuthenticationManager.AuthResult auth = userService.checkAuth();
+    Object authObject = authService.checkBearerOrBasicAuth();
+    if(authObject == null){
+      throw new NotAuthorizedException("Authentication not valid");
+    }
 
     Optional<UserAttributeEntity> foundApiKey = apiKeyService.findByApiKeyAttribute(apiKey);
-
     if(foundApiKey.isEmpty()){
       throw new BadRequestException("ApiKey not found");
     }
 
     UserEntity ownerApiKey = foundApiKey.get().getUser();
 
-    userService.validateIsSameUser(auth, ownerApiKey);
+    if(authObject instanceof AuthenticationManager.AuthResult) {
+      authService.validateIsSameUser((AuthenticationManager.AuthResult) authObject, ownerApiKey);
+    }
 
     ApiKey parsedApiKey = apiKeyService.parseApiKey(foundApiKey.get());
 
