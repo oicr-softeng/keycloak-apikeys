@@ -86,9 +86,11 @@ public class AuthService {
     if(roles.stream().noneMatch(roleModel -> roleModel.getName().equals(ROLE_ADMIN))){
       // Authentication is not an Admin,
       // check if it is the same user making the request
-      validateIsSameUser(auth, user);
-
-      throw new ForbiddenException("apiKeys are only visible for it's owner or an Admin");
+      try {
+        validateIsSameUser(auth, user);
+      }catch(Exception e){
+        throw new ForbiddenException("apiKeys are only visible for it's owner or an Admin");
+      }
     }
   }
 
