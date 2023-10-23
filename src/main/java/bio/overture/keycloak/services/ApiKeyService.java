@@ -16,6 +16,7 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.jpa.entities.UserAttributeEntity;
 import org.keycloak.models.jpa.entities.UserEntity;
 
+import java.time.OffsetDateTime;
 import java.util.*;
 
 import static bio.overture.keycloak.utils.Constants.SORT_ORDER_ASC;
@@ -88,7 +89,7 @@ public class ApiKeyService {
         .name(UUID.randomUUID().toString())
         .scope(new HashSet<>(scopes))
         .description(description)
-        .issueDate(new Date())
+        .issueDate(OffsetDateTime.now())
         .expiryDate(keyExpirationDate())
         .isRevoked(false)
         .build();

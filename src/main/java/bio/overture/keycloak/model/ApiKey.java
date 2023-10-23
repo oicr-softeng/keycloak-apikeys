@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import lombok.*;
 
+import java.time.OffsetDateTime;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.Set;
 
 @Data
@@ -16,8 +16,8 @@ import java.util.Set;
 public class ApiKey {
   private String name;
   private Set<ScopeName> scope;
-  private Date expiryDate;
-  private Date issueDate;
+  private OffsetDateTime expiryDate;
+  private OffsetDateTime issueDate;
   private Boolean isRevoked;
   private String description;
 

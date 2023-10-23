@@ -148,7 +148,7 @@ public class ApiKeyResource {
         .ok(CheckApiKeyResponse
             .builder()
             .user_id(ownerApiKey.getId())
-            .exp(parsedApiKey.getExpiryDate().getTime())
+            .exp(parsedApiKey.getExpiryDate().toEpochSecond())
             .isValid(apiKeyService.isValidApiKey(parsedApiKey))
             .message(apiKeyService.checkApiResponseMessage(parsedApiKey))
             .isRevoked(parsedApiKey.getIsRevoked())
