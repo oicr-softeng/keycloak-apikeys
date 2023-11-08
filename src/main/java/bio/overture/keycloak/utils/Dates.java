@@ -1,8 +1,8 @@
 package bio.overture.keycloak.utils;
 
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
+import java.util.Date;
 
 import static java.lang.System.getenv;
 
@@ -11,14 +11,14 @@ public class Dates {
 
   private static final String APIKEY_DURATION_DAYS = "APIKEY_DURATION_DAYS";
 
-  public static OffsetDateTime keyExpirationDate(){
+  public static Date keyExpirationDate(){
     int durationDays = Integer.parseInt(getenv().getOrDefault(APIKEY_DURATION_DAYS, "365"));
 
     LocalDateTime localDate = LocalDateTime.now().plusDays(durationDays);
-    return OffsetDateTime.of(localDate, ZoneOffset.UTC);
+    return Date.from(localDate.atZone(ZoneId.systemDefault()).toInstant());
   }
 
-  public static boolean isExpired(OffsetDateTime expirationDate){
-    return expirationDate.isBefore(OffsetDateTime.now());
+  public static boolean isExpired(Date expirationDate){
+    return expirationDate.before(new Date());
   }
 }

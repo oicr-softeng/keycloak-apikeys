@@ -64,6 +64,7 @@ public class ApiKeyResource {
             .count(keys.size())
             .resultSet(keys)
             .build()
+            .toString()
         ).build();
   }
 
@@ -89,7 +90,7 @@ public class ApiKeyResource {
     ApiKey apiKey = apiKeyService.issueApiKey(userId, scopeNames, description);
 
     return Response
-        .ok(apiKey)
+        .ok(apiKey.toString())
         .build();
   }
 
@@ -114,7 +115,7 @@ public class ApiKeyResource {
     ApiKey revokedApiKey = apiKeyService.revokeApiKey(ownerApiKey, apiKey);
 
     return Response
-        .ok(revokedApiKey)
+        .ok(revokedApiKey.toString())
         .build();
   }
 
@@ -148,7 +149,7 @@ public class ApiKeyResource {
         .ok(CheckApiKeyResponse
             .builder()
             .user_id(ownerApiKey.getId())
-            .exp(parsedApiKey.getExpiryDate().toEpochSecond())
+            .exp(parsedApiKey.getExpiryDate().getTime())
             .isValid(apiKeyService.isValidApiKey(parsedApiKey))
             .message(apiKeyService.checkApiResponseMessage(parsedApiKey))
             .isRevoked(parsedApiKey.getIsRevoked())

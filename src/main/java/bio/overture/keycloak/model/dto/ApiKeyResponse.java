@@ -1,8 +1,11 @@
 package bio.overture.keycloak.model.dto;
 
 import bio.overture.keycloak.model.ApiKey;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.*;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.List;
 
 @Data
@@ -16,4 +19,11 @@ public class ApiKeyResponse {
     private int count;
 
     private List<ApiKey> resultSet;
+
+    @SneakyThrows
+    @Override
+    public String toString() {
+      DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+      return new ObjectMapper().writer(df).writeValueAsString(this);
+    }
 }
