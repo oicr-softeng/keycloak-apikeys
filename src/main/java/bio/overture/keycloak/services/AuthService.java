@@ -81,9 +81,7 @@ public class AuthService {
   }
 
   public void validateIsSameUserOrAdmin(AuthenticationManager.AuthResult auth, UserEntity user){
-    Set<RoleModel> roles = RoleUtils.getDeepUserRoleMappings(auth.getUser());
-
-    if(roles.stream().noneMatch(roleModel -> roleModel.getName().equals(ROLE_ADMIN))){
+    if(auth.getUser().getGroupsCountByNameContaining(ROLE_ADMIN) == 0){
       // Authentication is not an Admin,
       // check if it is the same user making the request
       try {
