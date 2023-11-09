@@ -10,7 +10,9 @@ import bio.overture.keycloak.params.ScopeName;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import lombok.SneakyThrows;
 import org.jboss.logging.Logger;
+import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.keycloak.models.*;
 import org.keycloak.models.jpa.entities.UserAttributeEntity;
 import org.keycloak.models.jpa.entities.UserEntity;
@@ -119,12 +121,13 @@ public class ApiKeyResource {
         .build();
   }
 
+  @SneakyThrows
   @POST
   @Path("check_api_key")
+  @Consumes(MediaType.MULTIPART_FORM_DATA)
   @Produces(MediaType.APPLICATION_JSON)
-  public Response checkApiKey(
-      @QueryParam(value="apiKey") String apiKey
-  ){
+  public Response checkApiKey(MultipartFormDataInput formDataInput){
+    String apiKey = formDataInput.getFormDataPart("apiKey", String.class, null);
     logger.info("POST /check_api_key  apiKey:" + apiKey);
 
     Object authObject = authService.checkBearerOrBasicAuth();
@@ -146,7 +149,8 @@ public class ApiKeyResource {
     ApiKey parsedApiKey = apiKeyService.parseApiKey(foundApiKey.get());
 
     return Response
-        .ok(CheckApiKeyResponse
+        .status(207, "Multi-Status")
+        .entity(CheckApiKeyResponse
             .builder()
             .user_id(ownerApiKey.getId())
             .exp(parsedApiKey.getExpiryDate().getTime())
