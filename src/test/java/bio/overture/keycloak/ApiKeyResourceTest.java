@@ -1,29 +1,28 @@
 package bio.overture.keycloak;
 
+import static io.restassured.RestAssured.given;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import bio.overture.keycloak.provider.ResourceProviderFactory;
 import dasniko.testcontainers.keycloak.KeycloakContainer;
 import io.restassured.specification.RequestSpecification;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.util.Map;
-
-import static io.restassured.RestAssured.given;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 @Testcontainers
 @ExtendWith(MockitoExtension.class)
 public class ApiKeyResourceTest {
 
   @Container
-  private static final KeycloakContainer keycloak = new KeycloakContainer()
-        .withProviderClassesFrom("target/classes");
+  private static final KeycloakContainer keycloak =
+      new KeycloakContainer().withProviderClassesFrom("target/classes");
 
   @Test
-  public void testKeycloakContainer(){
+  public void testKeycloakContainer() {
     assertTrue(keycloak.isRunning());
   }
 
@@ -41,12 +40,7 @@ public class ApiKeyResourceTest {
 
   @Test
   public void issueApiKey_withNoBearerToken_shouldReturnUnauthorizedError() {
-    givenSpec()
-        .when()
-        .post("api_key")
-        .peek()
-        .then()
-        .statusCode(401);
+    givenSpec().when().post("api_key").peek().then().statusCode(401);
   }
 
   private RequestSpecification givenSpec() {

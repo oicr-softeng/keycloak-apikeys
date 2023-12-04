@@ -4,13 +4,12 @@ import bio.overture.keycloak.params.ScopeName;
 import com.fasterxml.jackson.core.util.MinimalPrettyPrinter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import lombok.*;
-
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.Set;
+import lombok.*;
 
 @Data
 @Builder
@@ -26,7 +25,7 @@ public class ApiKey {
 
   @SneakyThrows
   @Override
-  public String toString(){
+  public String toString() {
     DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
 
     ObjectWriter ow = new ObjectMapper().writer(df).withDefaultPrettyPrinter();
@@ -34,7 +33,7 @@ public class ApiKey {
   }
 
   @SneakyThrows
-  public String toJsonMinimal(){
+  public String toJsonMinimal() {
     // parses this instance into a simplified json with no indentation and date format as timestamp
     return new ObjectMapper().writer(new MinimalPrettyPrinter()).writeValueAsString(this);
   }

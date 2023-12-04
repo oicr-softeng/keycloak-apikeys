@@ -1,10 +1,9 @@
 package bio.overture.keycloak.model.enums;
 
+import java.util.Arrays;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
-
-import java.util.Arrays;
 
 @RequiredArgsConstructor
 public enum AccessLevel {
@@ -12,8 +11,7 @@ public enum AccessLevel {
   WRITE("WRITE"),
   DENY("DENY");
 
-  @NonNull
-  private final String value;
+  @NonNull private final String value;
 
   public static AccessLevel fromValue(String value) {
     for (val policyMask : values()) {

@@ -9,25 +9,20 @@ import org.keycloak.services.resource.RealmResourceProviderFactory;
 public class ResourceProviderFactory implements RealmResourceProviderFactory {
 
   public static final String PROVIDER_ID = "apikey";
+
   @Override
   public RealmResourceProvider create(KeycloakSession keycloakSession) {
     return new ResourceProvider(keycloakSession);
   }
 
   @Override
-  public void init(Config.Scope scope) {
-
-  }
+  public void init(Config.Scope scope) {}
 
   @Override
-  public void postInit(KeycloakSessionFactory keycloakSessionFactory) {
-
-  }
+  public void postInit(KeycloakSessionFactory keycloakSessionFactory) {}
 
   @Override
-  public void close() {
-
-  }
+  public void close() {}
 
   @Override
   public String getId() {

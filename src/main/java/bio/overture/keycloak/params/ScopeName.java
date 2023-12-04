@@ -1,11 +1,11 @@
 package bio.overture.keycloak.params;
 
+import static java.lang.String.format;
+
 import bio.overture.keycloak.model.enums.AccessLevel;
 import com.fasterxml.jackson.annotation.JsonValue;
 import jakarta.ws.rs.BadRequestException;
 import lombok.Data;
-
-import static java.lang.String.format;
 
 @Data
 public class ScopeName {
@@ -13,7 +13,8 @@ public class ScopeName {
 
   public ScopeName(String name) {
     if (!name.contains(".")) {
-      throw new BadRequestException(format("Bad scope name '%s'. Must be of the form \"<policyName>.<permission>\"", name));
+      throw new BadRequestException(
+          format("Bad scope name '%s'. Must be of the form \"<policyName>.<permission>\"", name));
     }
     scopeName = name;
   }

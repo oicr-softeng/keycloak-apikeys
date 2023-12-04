@@ -7,7 +7,6 @@ import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.models.*;
 import org.keycloak.models.jpa.entities.UserEntity;
 
-
 public class UserService {
 
   private final KeycloakSession session;
@@ -20,14 +19,13 @@ public class UserService {
     this.entityManager = session.getProvider(JpaConnectionProvider.class).getEntityManager();
   }
 
-  public UserEntity getUserById(String user_id){
+  public UserEntity getUserById(String user_id) {
 
     UserEntity userEntity = entityManager.find(UserEntity.class, user_id);
 
-    if(userEntity == null) {
+    if (userEntity == null) {
       throw new BadRequestException("User not valid");
     }
     return userEntity;
   }
-
 }

@@ -2,18 +2,14 @@ package bio.overture.keycloak.services;
 
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotAuthorizedException;
+import java.util.Base64;
+import java.util.Optional;
 import org.jboss.logging.Logger;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RoleModel;
 import org.keycloak.models.jpa.entities.UserEntity;
-import org.keycloak.models.utils.RoleUtils;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
-
-import java.util.Base64;
-import java.util.Optional;
-import java.util.Set;
 
 public class AuthService {
 
@@ -31,9 +27,8 @@ public class AuthService {
   }
 
   public AuthenticationManager.AuthResult checkBearerAuth() {
-    AuthenticationManager.AuthResult auth = new AppAuthManager
-        .BearerTokenAuthenticator(session)
-        .authenticate();
+    AuthenticationManager.AuthResult auth =
+        new AppAuthManager.BearerTokenAuthenticator(session).authenticate();
 
     if (auth == null) {
       throw new NotAuthorizedException("Bearer token is not valid");
@@ -47,7 +42,7 @@ public class AuthService {
     return auth;
   }
 
-  public ClientModel checkBasicAuth(String authorizationHeader){
+  public ClientModel checkBasicAuth(String authorizationHeader) {
     String base64Credentials = authorizationHeader.substring(BASIC_PREFIX.length()).trim();
     String credentials = new String(Base64.getDecoder().decode(base64Credentials));
 
@@ -60,10 +55,11 @@ public class AuthService {
         .orElseThrow(() -> new NotAuthorizedException("Invalid credentials"));
   }
 
-  public Object checkBearerOrBasicAuth(){
-    String authorizationHeader = session.getContext().getRequestHeaders().getHeaderString(AUTHORIZATION_HEADER_KEY);
+  public Object checkBearerOrBasicAuth() {
+    String authorizationHeader =
+        session.getContext().getRequestHeaders().getHeaderString(AUTHORIZATION_HEADER_KEY);
 
-    if(authorizationHeader != null) {
+    if (authorizationHeader != null) {
       if (authorizationHeader.startsWith(BASIC_PREFIX)) {
         return checkBasicAuth(authorizationHeader);
       } else if (authorizationHeader.startsWith(BEARER_PREFIX)) {
@@ -74,32 +70,37 @@ public class AuthService {
     throw new NotAuthorizedException("No Authentication provided");
   }
 
-  public void validateIsSameUser(AuthenticationManager.AuthResult auth, UserEntity user){
-    if(!auth.getUser().getId().equals(user.getId())){
+  public void validateIsSameUser(AuthenticationManager.AuthResult auth, UserEntity user) {
+    if (!auth.getUser().getId().equals(user.getId())) {
       throw new ForbiddenException("apiKeys are only visible for it's owner");
     }
   }
 
-  public void validateIsSameUserOrAdmin(AuthenticationManager.AuthResult auth, UserEntity user){
-    if(auth.getUser().getGroupsCountByNameContaining(ROLE_ADMIN) == 0){
+  public void validateIsSameUserOrAdmin(AuthenticationManager.AuthResult auth, UserEntity user) {
+    if (auth.getUser().getGroupsCountByNameContaining(ROLE_ADMIN) == 0) {
       // Authentication is not an Admin,
       // check if it is the same user making the request
       try {
         validateIsSameUser(auth, user);
-      }catch(Exception e){
+      } catch (Exception e) {
         throw new ForbiddenException("apiKeys are only visible for it's owner or an Admin");
       }
     }
   }
 
-  private Optional<ClientModel> validateClientCredentials(KeycloakSession session, String username, String password){
+  private Optional<ClientModel> validateClientCredentials(
+      KeycloakSession session, String username, String password) {
     return session
         .clients()
         .getClientsStream(session.getContext().getRealm())
-        .filter(clientModel -> clientModel.isEnabled() && clientModel.getClientId().equals(username))
+        .filter(
+            clientModel -> clientModel.isEnabled() && clientModel.getClientId().equals(username))
         .filter(clientModel -> clientModel.validateSecret(password))
-        .peek(clientModel -> logger.info("AuthService - Valid auth using client credentials, clientId:" +clientModel.getClientId()))
+        .peek(
+            clientModel ->
+                logger.info(
+                    "AuthService - Valid auth using client credentials, clientId:"
+                        + clientModel.getClientId()))
         .findFirst();
   }
-
 }

@@ -1,10 +1,9 @@
 package bio.overture.keycloak.model.dto;
 
 import bio.overture.keycloak.params.ScopeName;
+import java.util.Set;
 import lombok.Builder;
 import lombok.Data;
-
-import java.util.Set;
 
 @Data
 @Builder

@@ -16,5 +16,5 @@ public class ResourceProvider implements RealmResourceProvider {
   }
 
   @Override
-  public void close() { }
+  public void close() {}
 }
