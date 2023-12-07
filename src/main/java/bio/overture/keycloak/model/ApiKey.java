@@ -1,6 +1,7 @@
 package bio.overture.keycloak.model;
 
 import bio.overture.keycloak.params.ScopeName;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.util.MinimalPrettyPrinter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -16,7 +17,9 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ApiKey {
+  @JsonInclude(JsonInclude.Include.NON_NULL)
   private String name;
+
   private Set<ScopeName> scope;
   private Date expiryDate;
   private Date issueDate;

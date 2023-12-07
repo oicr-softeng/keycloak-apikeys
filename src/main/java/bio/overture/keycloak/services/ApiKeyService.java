@@ -5,9 +5,11 @@ import static bio.overture.keycloak.utils.Converters.jsonStringToClass;
 import static bio.overture.keycloak.utils.Dates.isExpired;
 import static bio.overture.keycloak.utils.Dates.keyExpirationDate;
 import static java.util.stream.Collectors.toList;
+import static org.keycloak.common.util.ObjectUtil.isBlank;
 
 import bio.overture.keycloak.model.ApiKey;
 import bio.overture.keycloak.params.ScopeName;
+import bio.overture.keycloak.utils.Hasher;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -28,6 +30,8 @@ public class ApiKeyService {
   private KeycloakSession session;
   private EntityManager entityManager;
 
+  private Hasher hasher;
+
   private static final Logger logger = Logger.getLogger(ApiKeyService.class);
 
   private static final String API_KEYS_ATTRIBUTE = "api-keys";
@@ -35,6 +39,7 @@ public class ApiKeyService {
   public ApiKeyService(KeycloakSession session) {
     this.session = session;
     this.entityManager = session.getProvider(JpaConnectionProvider.class).getEntityManager();
+    this.hasher = new Hasher();
   }
 
   public List<ApiKey> getApiKeys(
@@ -51,17 +56,26 @@ public class ApiKeyService {
       return Collections.emptyList();
     }
 
+    if (!isBlank(query)) {
+      validFormatApiKey(query);
+    }
+
     return user.getAttributes().stream()
         .filter(attribute -> attribute.getName().equals(API_KEYS_ATTRIBUTE))
         .map(this::parseApiKey)
-        .filter(value -> !query.isEmpty() ? value.getName().equals(query) : true)
+        .filter(filterByApiKeyName(query))
+        .map(this::hideApiKeyvalue)
         .sorted(findComparator(sort, sortOrder))
         .skip(offset)
         .limit(limit)
         .collect(toList());
   }
 
-  public Comparator<ApiKey> findComparator(String sort, String sortOrder) {
+  private java.util.function.Predicate<ApiKey> filterByApiKeyName(String query) {
+    return value -> !query.isEmpty() ? value.getName().equals(hasher.generateHash(query)) : true;
+  }
+
+  private Comparator<ApiKey> findComparator(String sort, String sortOrder) {
     Comparator<ApiKey> comparator;
     switch (sort.toUpperCase()) {
       case "EXPIRYDATE":
@@ -99,9 +113,15 @@ public class ApiKeyService {
   public ApiKey issueApiKey(
       @NonNull String userId, @NonNull List<ScopeName> scopes, String description) {
 
+    // generate the apiKey value
+    String apiKeyName = UUID.randomUUID().toString();
+
+    // hash the apiKey value
+    String hashedApiKeyName = hasher.generateHash(apiKeyName);
+
     ApiKey apiKey =
         ApiKey.builder()
-            .name(UUID.randomUUID().toString())
+            .name(hashedApiKeyName)
             .scope(new HashSet<>(scopes))
             .description(description)
             .issueDate(new Date())
@@ -110,6 +130,9 @@ public class ApiKeyService {
             .build();
 
     setApiKey(userId, apiKey);
+
+    // return the non-hashed apiKey name
+    apiKey.setName(apiKeyName);
 
     return apiKey;
   }
@@ -120,7 +143,9 @@ public class ApiKeyService {
 
     Optional<UserAttributeEntity> foundAttribute =
         entityManager.find(UserEntity.class, user.getId()).getAttributes().stream()
-            .filter(attribute -> parseApiKey(attribute).getName().equals(apiKeyName))
+            .filter(
+                attribute ->
+                    parseApiKey(attribute).getName().equals(hasher.generateHash(apiKeyName)))
             .findFirst();
 
     if (foundAttribute.isEmpty()) {
@@ -131,6 +156,9 @@ public class ApiKeyService {
   }
 
   public Optional<UserAttributeEntity> findByApiKeyAttribute(String apiKeyName) {
+
+    validFormatApiKey(apiKeyName);
+
     CriteriaBuilder cb = entityManager.getCriteriaBuilder();
     CriteriaQuery<UserAttributeEntity> cq = cb.createQuery(UserAttributeEntity.class);
     Root<UserAttributeEntity> root = cq.from(UserAttributeEntity.class);
@@ -142,12 +170,18 @@ public class ApiKeyService {
     TypedQuery<UserAttributeEntity> query = entityManager.createQuery(cq);
 
     return query.getResultList().stream()
-        .filter(attribute -> parseApiKey(attribute).getName().equals(apiKeyName))
+        .filter(
+            attribute -> parseApiKey(attribute).getName().equals(hasher.generateHash(apiKeyName)))
         .findFirst();
   }
 
   public ApiKey parseApiKey(UserAttributeEntity attributeApiKey) {
     return jsonStringToClass(attributeApiKey.getValue(), ApiKey.class);
+  }
+
+  private ApiKey hideApiKeyvalue(ApiKey apiKey) {
+    apiKey.setName(null);
+    return apiKey;
   }
 
   public String checkApiResponseMessage(ApiKey apiKey) {
@@ -187,6 +221,9 @@ public class ApiKeyService {
 
     entityManager.persist(attribute);
 
+    // return null apiKey Name
+    editApiKey.setName(null);
+
     return editApiKey;
   }
 
@@ -196,8 +233,12 @@ public class ApiKeyService {
       throw new BadRequestException("ApiKey cannot be empty.");
     }
 
-    if (apiKey.length() > 2048) {
-      throw new BadRequestException("Invalid apiKey, the maximum length for an apiKey is 2048.");
+    try {
+      UUID.fromString(apiKey);
+      // able to parse as UUID, so this is a valid UUID
+    } catch (IllegalArgumentException e) {
+      // unable to parse as UUID
+      throw new BadRequestException("Invalid apiKey format");
     }
   }
 }

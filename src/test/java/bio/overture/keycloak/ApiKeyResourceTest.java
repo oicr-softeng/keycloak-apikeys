@@ -27,14 +27,14 @@ public class ApiKeyResourceTest {
   }
 
   @Test
-  public void listApiKeys_withInvalidUserId_shouldThrowBadRequestError() {
+  public void listApiKeys_withInvalidUserId_shouldReturnUnauthorizedError() {
     givenSpec()
         .when()
         .queryParams(Map.of("user_id", "0000"))
         .get("api_key")
         .peek()
         .then()
-        .statusCode(400)
+        .statusCode(401)
         .log();
   }
 
