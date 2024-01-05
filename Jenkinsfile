@@ -1,56 +1,27 @@
-def chartversion = "3.1.1"
-
-pipeline {
-    agent {
-        kubernetes {
-            label 'ego-executor'
-            yaml """
+String podSpec = '''
 apiVersion: v1
 kind: Pod
 spec:
   containers:
-  - name: maven
-    command: ['cat']
-    tty: true
-    image: maven:3.6.3-openjdk-11
   - name: jdk
     tty: true
     image: adoptopenjdk/openjdk11:jdk-11.0.7_10-alpine-slim
     env:
       - name: DOCKER_HOST
         value: tcp://localhost:2375
-  - name: dind-daemon
-    image: docker:18.06-dind
-    securityContext:
-        privileged: true
-        runAsUser: 0
-    volumeMounts:
-      - name: docker-graph-storage
-        mountPath: /var/lib/docker
-  - name: docker
-    image: docker:18-git
-    tty: true
-    env:
-    - name: DOCKER_HOST
-      value: tcp://localhost:2375
-    - name: HOME
-      value: /home/jenkins/agent
-  securityContext:
-    runAsUser: 1000
-  volumes:
-  - name: docker-graph-storage
-    emptyDir: {}
-"""
+'''
+
+pipeline {
+    agent {
+        kubernetes {
+            yaml podSpec
         }
     }
 
     environment {
         gitHubRegistry = 'ghcr.io'
-        gitHubRepo = 'overture-stack/ego'
-        gitHubImageName = "${gitHubRegistry}/${gitHubRepo}"
-        dockerHubImageName = 'overture/ego'
-        DEPLOY_TO_DEV = false
-        PUBLISH_IMAGE = false
+        gitHubRepo = 'oicr-softeng/keycloak-apikeys'
+        githubPackages = "${gitHubRegistry}/${gitHubRepo}"
 
         commit = sh(
             returnStdout: true,
@@ -58,21 +29,9 @@ spec:
         ).trim()
 
         version = readMavenPom().getVersion()
-        slackNotificationsUrl = credentials('OvertureSlackJenkinsWebhookURL')
+        artifactId = readMavenPom().getArtifactId()
+        artifactName = "${artifactId}${version}.jar"
 
-    }
-
-    parameters {
-        booleanParam(
-            name: 'DEPLOY_TO_DEV',
-            defaultValue: "${env.DEPLOY_TO_DEV}",
-            description: 'Deploys your branch to argo-dev'
-        )
-        booleanParam(
-            name: 'PUBLISH_IMAGE',
-            defaultValue: "${env.PUBLISH_IMAGE ?: params.DEPLOY_TO_DEV}",
-            description: 'Publishes an image with {git commit} tag'
-        )
     }
 
     options {
@@ -83,15 +42,6 @@ spec:
 
     stages {
         stage('Test') {
-            environment {
-                SELENIUM_TEST_TYPE = 'BROWSERSTACK'
-                BROWSERSTACK_USERNAME = credentials('browserstack_user')
-                BROWSERSTACK_ACCESS_KEY = credentials('browserstack_key')
-                FACEBOOK_CLIENT_CLIENTID = '1196783150487854'
-                FACEBOOK_CLIENT_CLIENTSECRET = credentials('facebook_selenium_secret')
-                FACEBOOK_USER = 'immxgmqvsf_1551302168@tfbnw.net'
-                FACEBOOK_PASS = credentials('facebook_pass')
-            }
             steps {
                 container('jdk') {
                     sh "./mvnw test"
@@ -99,92 +49,10 @@ spec:
             }
         }
 
-        stage('Build image') {
+        stage('Build project') {
             steps {
-                container('docker') {
-                    sh "docker build --network=host -f Dockerfile . -t ${gitHubImageName}:${commit}"
-                }
-            }
-        }
-
-        stage('Build Artifact & Publish') {
-             when {
-                anyOf {
-                    branch "main"
-                    branch "develop"
-                }
-            }
-            steps {
-                container('maven') {
-                    configFileProvider(
-                        [configFile(fileId: '01ae7759-03a9-47c0-9db6-925aebb50ae1', variable: 'MAVEN_SETTINGS')]) {
-                        sh 'mvn -s $MAVEN_SETTINGS clean package deploy -DskipTests'
-                    }
-                }
-            }
-        }
-
-        stage('Publish images') {
-            when {
-                anyOf {
-                    branch 'develop'
-                    branch 'main'
-                    expression { return params.PUBLISH_IMAGE }
-                }
-            }
-            steps {
-                container('docker') {
-                    withCredentials([usernamePassword(
-                        credentialsId:'OvertureBioGithub',
-                        passwordVariable: 'PASSWORD',
-                        usernameVariable: 'USERNAME'
-                    )]) {
-                        sh "docker login ${gitHubRegistry} -u $USERNAME -p $PASSWORD"
-
-                        script {
-                            if (env.BRANCH_NAME ==~ 'main') { //push edge and commit tags
-                                sh "docker tag ${gitHubImageName}:${commit} ${gitHubImageName}:${version}"
-                                sh "docker push ${gitHubImageName}:${version}"
-
-                                sh "docker tag ${gitHubImageName}:${commit} ${gitHubImageName}:latest"
-                                sh "docker push ${gitHubImageName}:latest"
-                            } else { // push commit tag
-                                sh "docker push ${gitHubImageName}:${commit}"
-                            }
-
-                            if (env.BRANCH_NAME ==~ 'develop') { // push edge tag
-                                sh "docker tag ${gitHubImageName}:${commit} ${gitHubImageName}:edge"
-                                sh "docker push ${gitHubImageName}:edge"
-                            }
-                        }
-                    }
-                }
-                container('docker') {
-                    withCredentials([usernamePassword(
-                        credentialsId:'OvertureDockerHub',
-                        passwordVariable: 'PASSWORD',
-                        usernameVariable: 'USERNAME'
-                    )]) {
-                        sh "docker login -u $USERNAME -p $PASSWORD"
-
-                        script {
-                            if (env.BRANCH_NAME ==~ 'main') { //push edge and commit tags
-                                sh "docker tag ${gitHubImageName}:${commit} ${dockerHubImageName}:${version}"
-                                sh "docker push ${dockerHubImageName}:${version}"
-
-                                sh "docker tag ${gitHubImageName}:${commit} ${dockerHubImageName}:latest"
-                                sh "docker push ${dockerHubImageName}:latest"
-                            } else { // push commit tag
-                                sh "docker tag ${gitHubImageName}:${commit} ${dockerHubImageName}:${commit}"
-                                sh "docker push ${dockerHubImageName}:${commit}"
-                            }
-
-                            if (env.BRANCH_NAME ==~ 'develop') { // push edge tag
-                                sh "docker tag ${gitHubImageName}:${commit} ${dockerHubImageName}:edge"
-                                sh "docker push ${dockerHubImageName}:edge"
-                            }
-                        }
-                    }
+                container('jdk') {
+                    sh "./mvnw clean package"
                 }
             }
         }
@@ -192,6 +60,8 @@ spec:
         stage('Publish tag to github') {
             when {
                 branch 'main'
+                branch 'develop'
+                branch 'test-develop'
             }
             steps {
                 container('node') {
@@ -203,111 +73,47 @@ spec:
                         ),
                     ]) {
                         script {
-                            // we still want to run the platform deploy even if this fails, hence try-catch
-                            try {
+                            if (env.BRANCH_NAME ==~ 'main') {
                                 sh "git tag ${version}"
-                                sh "git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/${gitHubRepo} --tags"
-                                sh "curl \
-                                -X POST \
-                                -H 'Content-type: application/json' \
-                                    --data '{ \
-                                        \"text\":\"New ${gitHubRepo} published succesfully: v.${version}\
-                                        \n[Build ${env.BUILD_NUMBER}] (${env.BUILD_URL})\" \
-                                    }' \
-                                ${slackNotificationsUrl}"
-                            } catch (err) {
-                                echo 'There was an error while publishing packages'
+                                sh "git tag latest"
+                            else if (env.BRANCH_NAME ==~ 'develop') {
+                                sh "git tag ${commit}"
+                                sh "git tag edge"
+                            } else { // push commit tag
+                                sh "git tag ${commit}"
                             }
+                            sh "git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/${gitHubRepo} --tags"
                         }
                     }
                 }
             }
         }
 
-        stage('Deploy to Overture QA') {
-            when {
-                anyOf {
-                    branch 'develop'
-                    expression { return params.DEPLOY_TO_DEV }
-                }
-            }
-			steps {
-				build(job: "/Overture.bio/provision/DeployWithHelm", parameters: [
-						[$class: 'StringParameterValue', name: 'OVERTURE_ENV', value: 'qa' ],
-						[$class: 'StringParameterValue', name: 'OVERTURE_CHART_NAME', value: 'ego'],
-						[$class: 'StringParameterValue', name: 'OVERTURE_RELEASE_NAME', value: 'ego'],
-						[$class: 'StringParameterValue', name: 'OVERTURE_HELM_CHART_VERSION', value: "${chartversion}"],
-						[$class: 'StringParameterValue', name: 'OVERTURE_HELM_REPO_URL', value: "https://overture-stack.github.io/charts-server/"],
-						[$class: 'StringParameterValue', name: 'OVERTURE_HELM_REUSE_VALUES', value: "false" ],
-						[$class: 'StringParameterValue', name: 'OVERTURE_ARGS_LINE', value: "--set-string image.tag=${commit}" ]
-				])
-			}
-        }
+        stage('Publish a Github Release') {
+            def githubToken = env.GITHUB_TOKEN // Set GITHUB_TOKEN in Jenkins credentials
+                // Create a GitHub release using GitHub API
+                def releaseName = "Release ${version}"
 
-        stage('Deploy to Overture Staging') {
-            when {
-                anyOf {
-                    branch 'main'
-                }
-            }
-            steps {
-				build(job: "/Overture.bio/provision/DeployWithHelm", parameters: [
-						[$class: 'StringParameterValue', name: 'OVERTURE_ENV', value: 'staging' ],
-						[$class: 'StringParameterValue', name: 'OVERTURE_CHART_NAME', value: 'ego'],
-						[$class: 'StringParameterValue', name: 'OVERTURE_RELEASE_NAME', value: 'ego'],
-						[$class: 'StringParameterValue', name: 'OVERTURE_HELM_CHART_VERSION', value: "${chartversion}"],
-						[$class: 'StringParameterValue', name: 'OVERTURE_HELM_REPO_URL', value: "https://overture-stack.github.io/charts-server/"],
-						[$class: 'StringParameterValue', name: 'OVERTURE_HELM_REUSE_VALUES', value: "false" ],
-						[$class: 'StringParameterValue', name: 'OVERTURE_ARGS_LINE', value: "--set-string image.tag=${version}" ]
-				])
-            }
-        }
-    }
+                def createReleaseResponse = sh (
+                    script: "curl \
+                                -X POST \
+                                -H 'Authorization: token ${githubToken}' \
+                                -d '{\"tag_name\": \"${version}\", \"name\": \"${releaseName}\", \"body\": \"\"}'
+                                https://api.github.com/repos/${githubPackages}/releases",
+                    returnStdout: true
+                ).trim()
 
-    post {
-        fixed {
-            script {
-                if (env.BRANCH_NAME ==~ /(develop|main|test\S*)/) {
-                    sh "curl \
-                        -X POST \
-                        -H 'Content-type: application/json' \
-                        --data '{ \
-                            \"text\":\"Build Fixed: ${env.JOB_NAME}#${commit} \
-                            \n[Build ${env.BUILD_NUMBER}] (${env.BUILD_URL})\" \
-                        }' \
-                        ${slackNotificationsUrl}"
-                }
-            }
-        }
+                def uploadUrl = sh (
+                    script: "echo ${createReleaseResponse} | jq -r '.upload_url'",
+                    returnStdout: true
+                ).trim().replace("{?name,label}", "")
 
-        success {
-            script {
-                if (env.BRANCH_NAME ==~ /(test\S*)/) {
-                    sh "curl \
-                        -X POST \
-                        -H 'Content-type: application/json' \
-                        --data '{ \
-                            \"text\":\"Build tested: ${env.JOB_NAME}#${commit} \
-                            \n[Build ${env.BUILD_NUMBER}] (${env.BUILD_URL})\" \
-                        }' \
-                        ${slackNotificationsUrl}"
-                }
-            }
-        }
-
-        unsuccessful {
-            script {
-                if (env.BRANCH_NAME ==~ /(develop|main|test\S*)/) {
-                    sh "curl \
-                        -X POST \
-                        -H 'Content-type: application/json' \
-                        --data '{ \
-                            \"text\":\"Build Failed: ${env.JOB_NAME}#${commit} \
-                            \n[Build ${env.BUILD_NUMBER}] (${env.BUILD_URL})\" \
-                        }' \
-                        ${slackNotificationsUrl}"
-                }
-            }
+                // Upload the .jar file as a release asset
+                sh "curl \
+                    -X POST \
+                    -H 'Authorization: token ${githubToken}' \
+                    -H 'Content-Type: application/java-archive' \
+                    --data-binary target/${artifactName} ${uploadUrl}?name=${artifactId}.jar"
         }
     }
 }
