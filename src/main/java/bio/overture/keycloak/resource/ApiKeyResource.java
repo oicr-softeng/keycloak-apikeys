@@ -85,6 +85,8 @@ public class ApiKeyResource {
 
     List<ScopeName> scopeNames = mapToList(scopes, ScopeName::new);
 
+    authService.validatePermissions(auth, scopeNames);
+
     ApiKey apiKey = apiKeyService.issueApiKey(userId, scopeNames, description);
 
     return Response.ok(apiKey.toString()).build();
