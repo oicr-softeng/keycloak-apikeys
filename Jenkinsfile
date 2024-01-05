@@ -76,7 +76,7 @@ pipeline {
                             if (env.BRANCH_NAME ==~ 'main') {
                                 sh "git tag ${version}"
                                 sh "git tag latest"
-                            else if (env.BRANCH_NAME ==~ 'develop') {
+                            }else if (env.BRANCH_NAME ==~ 'develop') {
                                 sh "git tag ${commit}"
                                 sh "git tag edge"
                             } else { // push commit tag
@@ -98,7 +98,7 @@ pipeline {
                     script: "curl \
                                 -X POST \
                                 -H 'Authorization: token ${githubToken}' \
-                                -d '{\"tag_name\": \"${version}\", \"name\": \"${releaseName}\", \"body\": \"\"}'
+                                -d '{\"tag_name\": \"${version}\", \"name\": \"${releaseName}\", \"body\": \"\"}' \
                                 https://api.github.com/repos/${githubPackages}/releases",
                     returnStdout: true
                 ).trim()
