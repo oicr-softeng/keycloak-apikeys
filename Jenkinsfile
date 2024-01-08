@@ -44,7 +44,8 @@ pipeline {
         stage('Test') {
             steps {
                 container('jdk') {
-                    sh "./mvnw test"
+                    echo 'Running test'
+                    sh './mvnw test'
                 }
             }
         }
@@ -52,7 +53,8 @@ pipeline {
         stage('Build project') {
             steps {
                 container('jdk') {
-                    sh "./mvnw clean package"
+                    echo 'Building project'
+                    sh './mvnw clean package'
                 }
             }
         }
