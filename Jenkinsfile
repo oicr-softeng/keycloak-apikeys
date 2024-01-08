@@ -91,30 +91,32 @@ pipeline {
 
         stage('Publish a Github Release') {
             steps {
-                def githubToken = env.GITHUB_TOKEN // Set GITHUB_TOKEN in Jenkins credentials
-                // Create a GitHub release using GitHub API
-                def releaseName = "Release ${version}"
+                script {
+                    def githubToken = env.GITHUB_TOKEN // Set GITHUB_TOKEN in Jenkins credentials
+                    // Create a GitHub release using GitHub API
+                    def releaseName = "Release ${version}"
 
-                def createReleaseResponse = sh(
-                        script: "curl \
-                                -X POST \
-                                -H 'Authorization: token ${githubToken}' \
-                                -d '{\"tag_name\": \"${version}\", \"name\": \"${releaseName}\", \"body\": \"\"}' \
-                                https://api.github.com/repos/${githubPackages}/releases",
-                        returnStdout: true
-                ).trim()
+                    def createReleaseResponse = sh(
+                            script: "curl \
+                                    -X POST \
+                                    -H 'Authorization: token ${githubToken}' \
+                                    -d '{\"tag_name\": \"${version}\", \"name\": \"${releaseName}\", \"body\": \"\"}' \
+                                    https://api.github.com/repos/${githubPackages}/releases",
+                            returnStdout: true
+                    ).trim()
 
-                def uploadUrl = sh(
-                        script: "echo ${createReleaseResponse} | jq -r '.upload_url'",
-                        returnStdout: true
-                ).trim().replace("{?name,label}", "")
+                    def uploadUrl = sh(
+                            script: "echo ${createReleaseResponse} | jq -r '.upload_url'",
+                            returnStdout: true
+                    ).trim().replace("{?name,label}", "")
 
-                // Upload the .jar file as a release asset
-                sh "curl \
-                    -X POST \
-                    -H 'Authorization: token ${githubToken}' \
-                    -H 'Content-Type: application/java-archive' \
-                    --data-binary target/${artifactName} ${uploadUrl}?name=${artifactId}.jar"
+                    // Upload the .jar file as a release asset
+                    sh "curl \
+                        -X POST \
+                        -H 'Authorization: token ${githubToken}' \
+                        -H 'Content-Type: application/java-archive' \
+                        --data-binary target/${artifactName} ${uploadUrl}?name=${artifactId}.jar"
+                }
             }
         }
     }
