@@ -82,9 +82,11 @@ pipeline {
 
         stage('Publish tag to github') {
             when {
-                branch 'main'
-                branch 'develop'
-                branch 'test-develop'
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                    branch 'test-develop'
+                }
             }
             steps {
                 container('node') {
@@ -105,6 +107,7 @@ pipeline {
                             } else { // push commit tag
                                 sh "git tag ${commit}"
                             }
+                            echo 'Creating github tags'
                             sh "git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/${gitHubRepo} --tags"
                         }
                     }
@@ -113,6 +116,13 @@ pipeline {
         }
 
         stage('Publish a Github Release') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                    branch 'test-develop'
+                }
+            }
             steps {
                 script {
                     def githubToken = env.GITHUB_TOKEN // Set GITHUB_TOKEN in Jenkins credentials
