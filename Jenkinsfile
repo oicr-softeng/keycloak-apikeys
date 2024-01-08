@@ -5,7 +5,7 @@ spec:
   containers:
   - name: jdk
     tty: true
-    image: adoptopenjdk/openjdk11:jdk-11.0.7_10-alpine-slim
+    image: eclipse-temurin:17-jdk-jammy
     env:
       - name: DOCKER_HOST
         value: tcp://localhost:2375
