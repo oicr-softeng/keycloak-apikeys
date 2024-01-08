@@ -9,6 +9,27 @@ spec:
     env:
       - name: DOCKER_HOST
         value: tcp://localhost:2375
+  - name: dind-daemon
+    image: docker:18.06-dind
+    securityContext:
+        privileged: true
+        runAsUser: 0
+    volumeMounts:
+      - name: docker-graph-storage
+        mountPath: /var/lib/docker
+  - name: docker
+    image: docker:18-git
+    tty: true
+    env:
+    - name: DOCKER_HOST
+      value: tcp://localhost:2375
+    - name: HOME
+      value: /home/jenkins/agent
+  securityContext:
+    runAsUser: 1000
+  volumes:
+  - name: docker-graph-storage
+    emptyDir: {}
 '''
 
 pipeline {
