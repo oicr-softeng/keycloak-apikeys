@@ -188,6 +188,7 @@ public class AuthService {
       AuthorizationProvider authorizationProvider,
       ResourceServer resourceServer,
       ScopeName scopeName) {
+    if (resourceServer == null) return null;
     return authorizationProvider
         .getStoreFactory()
         .getResourceStore()
