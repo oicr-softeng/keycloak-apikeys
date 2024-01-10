@@ -149,7 +149,7 @@ public class AuthService {
                                   authorizationProvider, permissions, identity, resourceServer);
                             }));
 
-    if (!scopesAreValid) {
+    if (!scopesAreValid || scopes.size() == 0) {
       throw new ForbiddenException("Invalid Scope");
     }
   }

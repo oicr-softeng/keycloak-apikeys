@@ -21,6 +21,10 @@ public class UserService {
 
   public UserEntity getUserById(String user_id) {
 
+    if (user_id == null) {
+      throw new BadRequestException("user_id is required");
+    }
+
     UserEntity userEntity = entityManager.find(UserEntity.class, user_id);
 
     if (userEntity == null) {
