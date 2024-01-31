@@ -64,8 +64,8 @@ public class ApiKeyService {
         .filter(attribute -> attribute.getName().equals(API_KEYS_ATTRIBUTE))
         .map(this::parseApiKey)
         .filter(filterByApiKeyName(query))
-        .map(this::hideApiKeyvalue)
         .sorted(findComparator(sort, sortOrder))
+        .map(this::hideApiKeyvalue)
         .skip(offset)
         .limit(limit)
         .collect(toList());

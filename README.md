@@ -18,7 +18,7 @@ This extension extends Keycloak Server providing additional REST endpoints to cr
 - **Authorization**: `Bearer token` of the owner of the apiKey.
 - **Description**: Retrieves a list of API Keys by user.
 - **Query Params**:  
-  - `user_id` (string) - The ID of the user.
+  - `user_id` (string) Required - The ID of the user.
   - `query` (string) optional - The ID of an API Key to filter.
   - `limit` (string) optional - Allows to limit the number of API Keys to retrieve. Default *20*.
   - `offset` (string) optional - Allows to omit a specified number of API Keys before the beginning of the result set. Default *0*.
@@ -38,9 +38,10 @@ This extension extends Keycloak Server providing additional REST endpoints to cr
 ### Check API Key
 - **URL**: http://localhost/realms/{realm_name}/apikey/check_api_key
 - **Method**: `POST`
+- **Header**: 'Content-Type: multipart/form-data'
 - **Authorization**: `Bearer token` of the owner of the apiKey or `Basic auth` of a client.
 - **Description**: Checks the API Key.
-- **Query Params**:
+- **Body (form-data)**:
     - `apiKey` (string) - The ID of an API Key
 
 ### Revoke an API Key
