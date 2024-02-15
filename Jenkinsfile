@@ -2,5 +2,5 @@
 pipelineOVERTUREKeycloackApiKeys(
     gitRepo: "oicr-softeng/keycloak-apikeys",
     testCommand: "./mvnw test",
-    buildCommand: "./mvnw clean package"
+    buildCommand: "./mvnw clean package -DskipTests -X"
 )
