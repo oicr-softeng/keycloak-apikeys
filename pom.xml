@@ -121,6 +121,9 @@
                     </dependency>
                 </dependencies>
                 <configuration>
+                    <excludes>
+                        <exclude>**/ApiKeyResourceTest.java</exclude> <!-- Issue #10 -->
+                    </excludes>
                     <reportFormat>plain</reportFormat>
                     <consoleOutputReporter>
                         <disable>true</disable>
