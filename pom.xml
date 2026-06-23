@@ -14,6 +14,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <keycloak.version>22.0.1</keycloak.version>
         <jboss.version>6.2.4.Final</jboss.version>
+        <build.commit>dev</build.commit>
     </properties>
 
     <dependencies>
@@ -49,14 +50,6 @@
             <artifactId>keycloak-model-jpa</artifactId>
             <version>22.0.1</version>
         </dependency>
-
-        <!-- jboss -->
-        <dependency>
-            <groupId>org.jboss.resteasy</groupId>
-            <artifactId>resteasy-multipart-provider</artifactId>
-            <version>${jboss.version}</version>
-        </dependency>
-
 
         <!-- utils -->
         <dependency>
@@ -96,6 +89,12 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>com.spotify.fmt</groupId>

@@ -1,6 +1,6 @@
 @Library(value='jenkins-pipeline-library@master', changelog=false) _
-pipelineOVERTUREKeycloackApiKeys(
+pipelineSoftEngKeycloakApiKeys(
     gitRepo: "oicr-softeng/keycloak-apikeys",
     testCommand: "./mvnw test",
-    buildCommand: "./mvnw clean package -DskipTests"
+    buildCommand: './mvnw clean package -DskipTests -Dbuild.commit=${commit}'
 )

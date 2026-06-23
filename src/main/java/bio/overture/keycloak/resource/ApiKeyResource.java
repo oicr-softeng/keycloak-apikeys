@@ -13,9 +13,7 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.*;
-import lombok.SneakyThrows;
 import org.jboss.logging.Logger;
-import org.jboss.resteasy.plugins.providers.multipart.MultipartFormDataInput;
 import org.keycloak.models.*;
 import org.keycloak.models.jpa.entities.UserAttributeEntity;
 import org.keycloak.models.jpa.entities.UserEntity;
@@ -73,7 +71,7 @@ public class ApiKeyResource {
   @Produces(MediaType.APPLICATION_JSON)
   public Response issueApiKey(
       @QueryParam(value = "user_id") String userId,
-      @QueryParam(value = "scopes") ArrayList<String> scopes,
+      @QueryParam(value = "scopes") List<String> scopes,
       @QueryParam(value = "description") String description) {
     logger.info("POST /api_key  user_id:" + userId + ", scopes:" + scopes);
 
@@ -115,13 +113,11 @@ public class ApiKeyResource {
     return Response.ok(revokedApiKey.toString()).build();
   }
 
-  @SneakyThrows
   @POST
   @Path("check_api_key")
   @Consumes(MediaType.MULTIPART_FORM_DATA)
   @Produces(MediaType.APPLICATION_JSON)
-  public Response checkApiKey(MultipartFormDataInput formDataInput) {
-    String apiKey = formDataInput.getFormDataPart("apiKey", String.class, null);
+  public Response checkApiKey(@FormParam("apiKey") String apiKey) {
     logger.info("POST /check_api_key  apiKey:" + apiKey);
 
     Object authObject = authService.checkBearerOrBasicAuth();
